@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import LoginPage from '../Pages/LoginPage.js';
 import testData from '../TestData/testdata.js';
-// Test 1: Verify OrangeHRM login page
+// Verify OrangeHRM login page
 test('Verify OrangeHRM login page', async ({ page }) => {
     const loginPage = new LoginPage(page);
     await loginPage.openApplication();

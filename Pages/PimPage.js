@@ -5,38 +5,45 @@ export default class PIMPage {
     constructor(page) {
         this.page = page;
 
-        // PIM navigation
-        this.pimMenu = page.getByRole('link', {name: 'PIM'});
-        // Add Employee
-        this.addEmployeeButton = page.getByRole('link', {name: 'Add Employee'});
+        // Navigation
+        this.pimMenu = page.getByRole('link', {name: 'PIM',exact: true});
+        this.addEmployeeButton = page.getByRole('link', {name: 'Add Employee',exact: true});
+        this.employeeListButton = page.getByRole('link', {name: 'Employee List',exact: true});
+
+        // Add Employee form
         this.firstName = page.getByPlaceholder('First Name');
         this.middleName = page.getByPlaceholder('Middle Name');
         this.lastName = page.getByPlaceholder('Last Name');
-        this.saveButton = page.getByRole('button', {name: 'Save'});
+        this.saveButton = page.getByRole('button', {name: 'Save',exact: true});
 
-        // Employee List
-        this.employeeList = page.getByRole('link', {name: 'Employee List'});
-       this.employeeNameSearch = this.page.locator('.oxd-input-group').filter({
-        has: this.page.getByText('Employee Name', { exact: true })
-        }).locator('input');
-        this.searchButton = page.getByRole('button', {name: 'Search'});
-        this.employeeRows = page.locator('.oxd-table-body .oxd-table-row' );
-        // Personal Details
-        this.personalDetailsHeading = page.getByRole('heading', {name: 'Personal Details'});
+        // Employee List filters
+        this.employeeNameInput = page.locator('.oxd-form .oxd-autocomplete-text-input input').first();
+        this.searchButton = page.getByRole('button', {name: 'Search',exact: true});
+        this.resetButton = page.getByRole('button', {name: 'Reset',exact: true});
+
+        // Employee table
+        this.employeeRows = page.locator('.oxd-table-body .oxd-table-row');
+        this.personalDetailsHeading = page.getByRole('heading', { name: 'Personal Details',exact: true});
     }
-    // Navigate to PIM
+
+    // Navigate to PIM Employee List
     async navigateToPIM() {
-    await this.pimMenu.click();
-    await expect(this.page).toHaveURL(/pim\/viewEmployeeList/);
+        if (!this.page.url().includes('/pim/viewEmployeeList')) {
+            await expect(this.pimMenu).toBeVisible({timeout: 15000});
+            await this.pimMenu.click();
+        }
+
+        await expect(this.page).toHaveURL(/\/pim\/viewEmployeeList/,{ timeout: 15000 });
+        await expect(this.searchButton).toBeVisible({timeout: 20000});
     }
 
-    // Open Add Employee page
+    // Open Add Employee form
     async openAddEmployee() {
-    await this.addEmployeeButton.click();
-    await expect(this.page.getByRole('heading', {name: 'Add Employee'})).toBeVisible();
+        await this.addEmployeeButton.click();
+        await expect(this.page.getByRole('heading', {name: 'Add Employee',exact: true})).toBeVisible({ timeout: 15000 });
     }
 
-    // Add a new employee
+    // Add an employee
     async addEmployee(firstName, middleName, lastName) {
         await this.firstName.fill(firstName);
         await this.middleName.fill(middleName);
@@ -46,37 +53,57 @@ export default class PIMPage {
 
     // Verify employee was added
     async verifyEmployeeAdded() {
-    await expect(this.page.getByText('Successfully Saved')).toBeVisible();
+        await expect(this.page.getByText('Successfully Saved', {exact: false})).toBeVisible({ timeout: 15000 });
     }
 
-    // Search for an employee
-    async searchEmployee(firstName) {
-    await expect(this.employeeNameSearch).toBeVisible();
-    await this.employeeNameSearch.fill(firstName);
+    // Search using the Employee Name autocomplete
+    async searchEmployee(lastName) {
+        await this.navigateToPIM();
+        await expect(this.employeeNameInput).toBeVisible({timeout: 15000});
+        await this.employeeNameInput.fill(lastName);
+        const suggestions = this.page.locator('.oxd-autocomplete-option' );
+        // Wait for a suggestion matching the requested name.
+        const matchingSuggestion = suggestions.filter({hasText: lastName}).first();
+        await expect(matchingSuggestion).toBeVisible({timeout: 10000});
+        console.log('Selected employee suggestion:',await matchingSuggestion.innerText());
+        await matchingSuggestion.click();
+        await this.searchButton.click();
+        // Wait for the search results to render.
+        await expect(this.page.locator('.oxd-table-body')).toBeVisible({ timeout: 15000 });
+        // Log actual employee rows, not the locator count alone.
+        const rowCount = await this.employeeRows.count();
+        console.log('Search value:', lastName);
+        console.log('Employee row count:', rowCount);
+        for (let i = 0; i < rowCount; i++) {
+            console.log(
+                `Row ${i + 1}:`,
+                await this.employeeRows.nth(i).innerText()
+            );
+        }
+    }
 
-    // Wait for the employee suggestion
-    const suggestion = this.page.locator('.oxd-autocomplete-option');
-    await expect(suggestion.first()).toBeVisible({timeout: 10000});
-    await suggestion.first().click();
-    // Click Search
-    await this.searchButton.click();
-    // Wait for search results
-    await expect(this.employeeRows.first()).toBeVisible({timeout: 10000});
-}
-   
-async openEmployeeRecord(employeeId) {
-const rows = this.page.locator('.oxd-table-body .oxd-table-row');
-    // Print employee records in the terminal
-    console.log(await rows.allTextContents());
-    // Find the employee by ID
-    const employeeRow = rows.filter({hasText: employeeId});
-    await expect(employeeRow).toHaveCount(1);
-    await employeeRow.click();
-    // Check Personal Details page
-    await this.verifyPersonalDetails();
-}
+    // Compatibility with existing step definitions
+    async searchEmployeeByLastName(lastName) {
+    await this.searchEmployee(lastName);
+    }
+
+    // Open an employee from the existing search results.
+    // Does not repeat the search.
+    async openSearchedEmployeeRecordByLastName(lastName) {
+        const matchingRow = this.employeeRows.filter({hasText: lastName});
+        await expect(matchingRow).toHaveCount(1, {timeout: 10000});
+        await matchingRow.getByRole('button').first().click();
+        await this.verifyPersonalDetails();
+    }
+
+    // Search and open in one method when needed
+    async openEmployeeRecordByLastName(lastName) {
+        await this.searchEmployee(lastName);
+        await this.openSearchedEmployeeRecordByLastName(lastName);
+    }
+
     // Verify Personal Details page
     async verifyPersonalDetails() {
-    await expect(this.personalDetailsHeading).toBeVisible();
+        await expect(this.personalDetailsHeading).toBeVisible({timeout: 15000});
     }
 }

@@ -11,9 +11,8 @@ test('Verify HR can delete an employee by last name', async ({ page }) => {
     const deleteEmployeePage = new DeleteEmployeePage(page);
    // Log in
     await loginPage.openApplication();
-    await loginPage.login(
-        testData.login.username,
-        testData.login.password
+    await loginPage.login(testData.login.username,
+                          testData.login.password
     );
     //  Open Employee List
     await pimPage.navigateToPIM();
